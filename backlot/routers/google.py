@@ -149,16 +149,21 @@ def _parse_batch_subrequest(payload: str):
     return method, target, headers, body
 
 
-def _batch_sub_response(r) -> str:
-    """One part's answer as the `application/http` payload a batch carries. The download redirect
-    (:func:`gerr.download_redirect`) carries real's three headers, measured 2026-10-04 in this
-    order: `Content-Length: 0`, though its error body follows, `Content-Type` and `Location`."""
+def _batch_sub_response(r, base: str) -> str:
+    """One part's answer as the `application/http` payload a batch carries, `base` being the batch
+    request's base URL. The download redirect (:func:`gerr.download_redirect`), the 302 whose
+    `Location` is under `base`'s `/download`, carries real's three headers, measured 2026-10-04 in
+    this order: `Content-Length: 0`, though its error body follows, `Content-Type` and `Location`.
+    Any other part carries `Content-Type` alone, so the `Location` of a redirect a route builds from
+    the host the parts are dispatched to, which nothing answers, is not passed on."""
+    location = r.headers.get("location", "")
+    redirect = r.status_code == 302 and location.startswith(f"{base}download/")
     lines = [f"HTTP/1.1 {r.status_code} {_batch_reason(r.status_code)}"]
-    if r.status_code == 302:
+    if redirect:
         lines.append("Content-Length: 0")
     lines.append(f"Content-Type: {r.headers.get('content-type', 'application/json')}")
-    if "location" in r.headers:
-        lines.append(f"Location: {r.headers['location']}")
+    if redirect:
+        lines.append(f"Location: {location}")
     return "\r\n".join(lines) + f"\r\n\r\n{r.text}"
 
 
@@ -203,7 +208,7 @@ async def batch(request: Request, api: str = "", version: str = "") -> Response:
                         headers=sub_headers,
                         content=sub_body.encode() if sub_body else None,
                     )
-                    sub_resp = _batch_sub_response(r)
+                    sub_resp = _batch_sub_response(r, str(request.base_url))
                 out_parts.append((cid, sub_resp))
     finally:
         _BATCH_OUTER.reset(outer)
