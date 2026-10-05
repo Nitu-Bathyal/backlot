@@ -62,9 +62,9 @@ from collections.abc import Mapping
 from fastapi import HTTPException, Request, Response
 
 DRIVE, GMAIL, EDITOR = "drive", "gmail", "editor"
-# `status` needs no per-family flag: Drive's parameter failures other than a typed value simply do
-# not have one, while every Gmail and editor error does, so "the error carries a status" is the
-# whole condition.
+# `status` needs no per-family flag: each constructor passes one exactly where the module
+# docstring's table says its family carries one, so "the error carries a status" is the whole
+# condition.
 _PREFIX_FAMILY = (
     ("/drive/v3", DRIVE),
     ("/gmail/v1", GMAIL),
@@ -219,8 +219,8 @@ def abuse_acknowledgment_not_applicable() -> GoogleError:
 
 
 def download_redirect(location: str) -> GoogleError:
-    """A Drive download inside a batch, which real sends to its download host rather than
-    answering. Measured 2026-10-04: a 302 carrying ``Location`` and this error body."""
+    """A Drive download inside a batch, which real redirects to the same path under `/download`
+    rather than answering. Measured 2026-10-04: a 302 carrying ``Location`` and this error body."""
     exc = GoogleError(302, "Unknown Error.", reason="backendError", status="UNKNOWN")
     exc.headers = {"Location": location}
     return exc
@@ -583,8 +583,8 @@ def validate_system_parameters(request: Request, *, callback: bool = True) -> No
     sentence, wrapped through the very name the other check would have refused. The batch endpoint
     is not a family path and is left alone.
 
-    ``callback=False`` leaves `callback` alone: it is not checked, and a refusal the request meets
-    later is not wrapped through it. The caller decides when, since which requests real exempts is a
+    ``callback=False`` leaves `callback` alone: it is not checked, and no refusal, the `$.xgafv` one
+    included, is wrapped through it. The caller decides when, since which requests real exempts is a
     question about the route.
     """
     if family(request.url.path) is None:
@@ -801,12 +801,13 @@ def rendered(
     parameter reaches the success path only (``routers.google._sheets_respond``) and nothing here
     reads it.
 
-    Wrapped only where ``validate_system_parameters`` ran, which is where a route matched. That is a
-    ROUTER dependency, so a family path with NO route -- `/sheets/v4/nope` -- reaches this having
-    been refused nothing, and `callback=a b` there would be answered by calling `a b`. Real answers
-    such a path from its front end as HTML, measured 2026-09-16 with a `callback` and without: 400
-    on Sheets, Docs and Slides, 404 on Drive and Gmail. So JSONP is not its shape there under any
-    name, and the plain body is the nearer of the two answers Backlot can give.
+    Wrapped only where ``validate_system_parameters`` checked `callback`, which is where a route
+    matched and did not exempt it. That is a ROUTER dependency, so a family path with NO route --
+    `/sheets/v4/nope` -- reaches this having been refused nothing, and `callback=a b` there would be
+    answered by calling `a b`. Real answers such a path from its front end as HTML, measured
+    2026-09-16 with a `callback` and without: 400 on Sheets, Docs and Slides, 404 on Drive and
+    Gmail. So JSONP is not its shape there under any name, and the plain body is the nearer of the
+    two answers Backlot can give.
 
     Where the check DID run the name needs no second look, and the body being wrapped may BE its
     refusal -- that is real's own answer, measured the same day: `callback=evil);alert(1);//` on a

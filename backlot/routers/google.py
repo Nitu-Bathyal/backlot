@@ -131,8 +131,8 @@ class _BatchOuter(NamedTuple):
 
 
 # The batch a sub-request came in, or ``None`` for a request sent on its own.
-# ``httpx.ASGITransport`` runs the app in the task that `batch` dispatches from, so the routes a part
-# reaches see what `batch` set.
+# ``httpx.ASGITransport`` runs the app in the task that `batch` dispatches from, so the routes a
+# part reaches see what `batch` set.
 _BATCH_OUTER: ContextVar[_BatchOuter | None] = ContextVar("google_batch_outer", default=None)
 
 
@@ -2223,9 +2223,9 @@ async def drive_files_get(file_id: str, request: Request):
     download = gerr.alt_format(request.query_params) == "media"
     _drive_typed(request, "acknowledgeAbuse", "supportsAllDrives", "supportsTeamDrives")
     # Measured 2026-10-04: before the lookup, so a file that does not exist is refused alike, and
-    # before `fields`. Inside a batch real checks a part's own flag only when the part is the batch's
-    # one part that is not a download, measured 2026-10-05 beside downloads, other reads and a
-    # second flagged part.
+    # before `fields`. Inside a batch real checks a part's own flag only when the part is the
+    # batch's one part that is not a download, measured 2026-10-05 beside downloads, other reads and
+    # a second flagged part.
     outer = _BATCH_OUTER.get()
     if not download and _drive_true(request, "acknowledgeAbuse") and (outer is None or outer.lone):
         raise gerr.abuse_acknowledgment_not_applicable()
@@ -4027,7 +4027,7 @@ def _drive_typed(request: Request, *bools: str, page_size: bool = False) -> dict
 def _drive_true(request: Request, name: str) -> bool:
     """Whether a Drive flag's first repeat is the word `true`, in any case.
 
-    Four flags run a check of their own when they are true, and the check reads the spelling rather
+    Four flags run a check of their own when spelled `true`, and the check reads the spelling rather
     than the boolean `_drive_typed` parses. Measured 2026-10-04 on `files.list`'s
     `includeItemsFromAllDrives`: `true`, `TRUE` and `tRuE` run it, while `t`, `1`, `y` and `yes`,
     which parse as true, do not; and `supportsAllDrives` lifts it at `true` and not at `t`, `1` or
@@ -4082,7 +4082,8 @@ def _batch_query_pairs(query: str) -> list[tuple[str, str]]:
 
 
 def _drive_batch_redirect(request: Request) -> None:
-    """A Drive download inside a batch, answered with real's redirect to its download host.
+    """A Drive download inside a batch, answered with real's redirect: a 302 to the same path under
+    `/download`.
 
     Measured 2026-10-04 on `files.get` with `alt=media` and on `files.export`: the redirect comes
     after `$.xgafv` and after a credential the part carries, a bad one being the 401, while a part
