@@ -908,8 +908,8 @@ _ABOUT = "/drive/v3/about?fields=user"
 _SHARED = "/drive/v3/files?pageSize=1&includeItemsFromAllDrives=true"
 
 # Batches of several parts, one or two of them asking `acknowledgeAbuse` on a read that downloads
-# nothing, with the status of each part as real answered it on 2026-10-05. The flag is checked
-# where its part is the one part of the batch that is not a download (`drive_files_get`).
+# nothing, with the status of each part as real answered it. The flag is checked where its part is
+# the one part of the batch that is not a download (`drive_files_get`).
 _BATCH_ACK_ROWS = [
     ([_ACK, _ABOUT], [200, 200]),
     ([_ABOUT, _ACK], [200, 200]),

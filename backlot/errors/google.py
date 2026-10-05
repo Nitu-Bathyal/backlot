@@ -219,8 +219,9 @@ def abuse_acknowledgment_not_applicable() -> GoogleError:
 
 
 def download_redirect(location: str) -> GoogleError:
-    """A Drive download inside a batch, which real redirects to the same path under `/download`
-    rather than answering. Measured 2026-10-04: a 302 carrying ``Location`` and this error body."""
+    """A Drive download inside a batch, redirected rather than answered -- see
+    ``routers.google._drive_batch_redirect``. Measured 2026-10-04: a 302 carrying ``Location`` and
+    this error body."""
     exc = GoogleError(302, "Unknown Error.", reason="backendError", status="UNKNOWN")
     exc.headers = {"Location": location}
     return exc
