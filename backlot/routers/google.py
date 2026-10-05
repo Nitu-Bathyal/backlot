@@ -4087,10 +4087,12 @@ def _drive_batch_redirect(request: Request) -> None:
 
     Measured 2026-10-04 on `files.get` with `alt=media` and on `files.export`: the redirect comes
     after `$.xgafv` and after a credential the part carries, a bad one being the 401, while a part
-    with no credential at all is redirected. It comes ahead of everything else measured beside it:
-    a file that does not exist, `supportsAllDrives=NOPE`, `fields=bogus`, an absent or empty
-    `mimeType`, a Docs file read with `alt=media`, and a `callback`, which neither wraps the
-    redirect (`cb`) nor refuses it (`a b`).
+    with no credential at all is redirected. Only `Bearer` and a token is a credential there:
+    measured 2026-10-05, `Basic YWJjOmRlZg==`, `bearer nope`, a bare `Bearer` and `nope` are each
+    redirected, though each is the 401 on a download sent on its own. The redirect comes ahead of
+    everything else measured beside it: a file that does not exist, `supportsAllDrives=NOPE`,
+    `fields=bogus`, an absent or empty `mimeType`, a Docs file read with `alt=media`, and a
+    `callback`, which neither wraps the redirect (`cb`) nor refuses it (`a b`).
 
     `Location` is the request's path under `/download`, as sent but for its escapes: measured
     2026-10-05 on `files/a%XXb` for each byte 0x20-0x7E, real decodes an escape of an ASCII letter,
@@ -4101,7 +4103,8 @@ def _drive_batch_redirect(request: Request) -> None:
     `Foo` does not, and a name the batch repeats is carried every time. The path and the query are
     read from the request's raw bytes, not its decoded URL, in which `%23` would start a
     fragment."""
-    if request.headers.get("authorization"):
+    scheme, _, token = (request.headers.get("authorization") or "").partition(" ")
+    if scheme == "Bearer" and token.strip():
         _require(request)
     outer = _BATCH_OUTER.get()
     path = _batch_escapes(request.scope["raw_path"].decode("latin-1"), "-._~")

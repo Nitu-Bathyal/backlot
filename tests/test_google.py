@@ -799,6 +799,10 @@ _BATCH_ROWS = [
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%b%4?alt=media", None, None), 302, None, "download/drive/v3/files/a%b%4?alt=media&quotaUser=7"),
     # its place among `$.xgafv`, the credential and `callback`, as `_drive_batch_redirect` records
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain", None, _BAD), 401, 401, None),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media", None, "Basic YWJjOmRlZg=="), 302, 401, "download/drive/v3/files/{pdf}?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media", None, "bearer nope"), 302, 401, "download/drive/v3/files/{pdf}?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media", None, "Bearer"), 302, 401, "download/drive/v3/files/{pdf}?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media", None, "nope"), 302, 401, "download/drive/v3/files/{pdf}?alt=media&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain", None, _ANON), 302, 403, "download/drive/v3/files/{doc}/export?mimeType=text/plain&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media", None, _ANON), 302, 403, "download/drive/v3/files/{pdf}?alt=media&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}", None, _ANON), 403, 403, None),
