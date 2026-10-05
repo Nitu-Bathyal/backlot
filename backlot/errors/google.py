@@ -10,8 +10,10 @@ envelope is NOT uniform — three families differ in which optional members they
 
     family                  errors[]           status               no Authorization header, GET
     ------------------------|------------------|---------------------|-----------------------------
-    Drive v3                | always           | auth failures and   | 403 PERMISSION_DENIED
-                            |                  | typed values only   |
+    Drive v3                | always           | auth failures,      | 403 PERMISSION_DENIED
+                            |                  | typed values,       |
+                            |                  | `$.xgafv` and the   |
+                            |                  | batch redirect only |
     Gmail v1                | unless $.xgafv=2 | always              | 401 UNAUTHENTICATED
     Docs v1 / Slides v1     | $.xgafv=1        | always              | 401 UNAUTHENTICATED
     Sheets v4               | $.xgafv=1        | always              | 403 PERMISSION_DENIED
@@ -587,9 +589,9 @@ def validate_system_parameters(request: Request, *, callback: bool = True) -> No
     """
     if family(request.url.path) is None:
         return
-    # That the check ran is what :func:`rendered` needs to know, and only this call can say so: a
-    # ROUTER dependency runs once a route has matched, so an unrouted family path reaches the
-    # renderer with a `callback` nothing has looked at.
+    # Whether `callback` was checked is what :func:`rendered` needs to know, and only this call can
+    # say so: a ROUTER dependency runs once a route has matched, so an unrouted family path reaches
+    # the renderer with a `callback` nothing has looked at.
     request.state.google_system_parameters_checked = callback
     value = xgafv(request.query_params)
     if value is not None and value not in XGAFV_VALUES:

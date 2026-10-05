@@ -33,11 +33,11 @@ from backlot.errors import google as gerr
 from backlot.openapi import qp
 from backlot.pagination import decode_cursor, decode_cursor_or_none, next_page_token
 
-# `$.xgafv` and `callback` are checked before any route runs — see
-# `gerr.validate_system_parameters`. A router dependency runs only once a route has MATCHED, so a
-# family path with no route 404s here rather than refusing either value — which is why this call
-# records that it ran and `gerr.rendered` wraps nothing without it: an unrouted path must not be
-# answered by calling a name nothing refused. Nothing to match there — measured 2026-09-16, real
+# `$.xgafv` is checked before any route runs, and `callback` too but on a Drive download inside a
+# batch — see `_system_parameters`. A router dependency runs only once a route has MATCHED, so a
+# family path with no route 404s here rather than refusing either value — which is why the check
+# records whether it looked at `callback` and `gerr.rendered` wraps nothing without it: an unrouted
+# path must not be answered by calling a name nothing refused. Nothing to match there — measured 2026-09-16, real
 # answers an unrouted family path from its front end, as HTML, 400 on Sheets, Docs and Slides and
 # 404 on Drive and Gmail, with or without either parameter, so no JSON envelope of its own exists
 # to compare against.
@@ -2046,7 +2046,9 @@ async def drive_shared_drives(request: Request):
     _drive_page_size_in_range(
         _drive_typed(request, "useDomainAdminAccess", page_size=True)["pageSize"], 100
     )
-    if _drive_true(request, "useDomainAdminAccess"):  # with a `q` sent and without one
+    # Real's answer to a caller who is not a domain administrator, which no caller here is, with a
+    # `q` sent and without one. Measured 2026-10-04.
+    if _drive_true(request, "useDomainAdminAccess"):
         raise gerr.invalid_value("q")
     return {"kind": "drive#driveList", "drives": []}
 
@@ -2275,7 +2277,9 @@ async def drive_files_permissions(file_id: str, request: Request):
         request, "supportsAllDrives", "supportsTeamDrives", "useDomainAdminAccess", page_size=True
     )["pageSize"]
     _drive_page_size_in_range(sizes, 100)
-    if _drive_true(request, "useDomainAdminAccess"):  # even for a file the caller owns
+    # Real's answer to a caller who is not a domain administrator, which no caller here is, even for
+    # a file the caller owns. Measured 2026-10-04.
+    if _drive_true(request, "useDomainAdminAccess"):
         raise gerr.not_found_file(file_id)
     ids = auth.visible_ids(request, caller)
     row = store.gdrive_by_id(conn, file_id, visible_ids=ids)
@@ -3962,9 +3966,8 @@ def _typed_query(request: Request, readers: dict) -> dict[str, list]:
 # The typed booleans each Drive method Backlot serves declares, as the proto field its refusal
 # names. Each is parsed and the parsed value never read. Measured 2026-09-23 on each of them: the
 # Sheets boolean spellings (`_sheets_bool_value`), 30 of them swept on `supportsAllDrives`. Spelled
-# `true`, four of them run a check of their own and two lift one, which `_drive_true` reads from the
-# spelling. `files.export` and `about.get` declare none, and real ignores `supportsAllDrives=NOPE`
-# on both.
+# `true`, four of them run a check of their own and two lift one -- see `_drive_true`.
+# `files.export` and `about.get` declare none, and real ignores `supportsAllDrives=NOPE` on both.
 _DRIVE_BOOLS = {
     "supportsAllDrives": "supports_all_drives",
     "supportsTeamDrives": "supports_team_drives",
@@ -3994,11 +3997,7 @@ def _drive_true(request: Request, name: str) -> bool:
     than the boolean `_drive_typed` parses. Measured 2026-10-04 on `files.list`'s
     `includeItemsFromAllDrives`: `true`, `TRUE` and `tRuE` run it, while `t`, `1`, `y` and `yes`,
     which parse as true, do not; and `supportsAllDrives` lifts it at `true` and not at `t`, `1` or
-    `yes`. `true&false` runs it and `false&true` does not.
-
-    Measured the same day, `useDomainAdminAccess` is answered the way real answers a caller who is
-    not a domain administrator, which no caller here is: 404 for the file on `permissions.list` and
-    400 at `q` on `drives.list`."""
+    `yes`. `true&false` runs it and `false&true` does not."""
     return (gerr.first_repeat(request.query_params, name) or "").casefold() == "true"
 
 
