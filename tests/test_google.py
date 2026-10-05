@@ -1358,6 +1358,7 @@ _DRIVE_CHECK_ROWS = [
     ("/drive/v3/files", "includeItemsFromAllDrives=true&supportsAllDrives=NOPE", "admin", _TYPED),
     ("/drive/v3/files", "includeItemsFromAllDrives=true&pageSize=0", "admin", _RANGE),
     ("/drive/v3/files", "includeItemsFromAllDrives=true&orderBy=bogus", "admin", (400, "invalid", "orderBy", None)),
+    ("/drive/v3/files", "includeItemsFromAllDrives=true&orderBy=name,name", "admin", (403, "orderByContainsDuplicateSortKeys", "orderBy", None)),
     ("/drive/v3/files", "includeItemsFromAllDrives=true&q=bad", "admin", _SHARED_DRIVES),
     ("/drive/v3/files", "includeItemsFromAllDrives=true&pageToken=bad", "admin", _SHARED_DRIVES),
     ("/drive/v3/files", "includeItemsFromAllDrives=true&fields=bad", "admin", _SHARED_DRIVES),
