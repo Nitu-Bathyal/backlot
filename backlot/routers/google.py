@@ -25,6 +25,8 @@ from typing import NamedTuple
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict
+from starlette.datastructures import QueryParams
+from starlette.routing import Match
 
 from backlot import auth, sheets_grid, store, synth
 from backlot.acl import Caller
@@ -119,10 +121,34 @@ DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
 _BATCH_BOUNDARY = "erb_batch_boundary_9f2a7c"
 _BATCH_DROP_HEADERS = {"host", "content-length", "content-transfer-encoding", "connection"}
 
-# The batch a sub-request came in, as the outer request's base URL and query string, or ``None``
-# for a request sent on its own. ``httpx.ASGITransport`` runs the app in the task that `batch`
-# dispatches from, so the routes a part reaches see what `batch` set.
-_BATCH_OUTER: ContextVar[tuple[str, str] | None] = ContextVar("google_batch_outer", default=None)
+
+class _BatchOuter(NamedTuple):
+    """The batch a sub-request came in."""
+
+    base: str  # the batch request's base URL
+    query: str  # the batch request's query string
+    lone: bool  # whether exactly one of its parts is not a Drive download (`_drive_download`)
+
+
+# The batch a sub-request came in, or ``None`` for a request sent on its own.
+# ``httpx.ASGITransport`` runs the app in the task that `batch` dispatches from, so the routes a part
+# reaches see what `batch` set.
+_BATCH_OUTER: ContextVar[_BatchOuter | None] = ContextVar("google_batch_outer", default=None)
+
+
+def _batch_part_downloads(method: str, target: str) -> bool:
+    """Whether a part's request line is a Drive download (`_drive_download`), asked of the route its
+    path matches before any part is sent. Asked of this module's `router`, which owns the Drive
+    routes: the app holds it wrapped, and the wrapper's match carries no endpoint."""
+    import httpx
+
+    url = httpx.URL(target)
+    scope = {"type": "http", "method": method, "path": url.path, "root_path": ""}
+    for route in router.routes:
+        match, child = route.matches(scope)
+        if match is Match.FULL:
+            return _drive_download(child.get("endpoint"), QueryParams(url.query))
+    return False
 
 
 def _batch_reason(code: int) -> str:
@@ -187,16 +213,21 @@ async def batch(request: Request, api: str = "", version: str = "") -> Response:
     outer_auth = request.headers.get("authorization")
     transport = httpx.ASGITransport(app=request.app, raise_app_exceptions=False)
     out_parts: list[tuple[str, str]] = []
-    outer = _BATCH_OUTER.set((str(request.base_url), request.url.query))
+    parts = [
+        (part.get("Content-ID", ""), *_parse_batch_subrequest(part.get_payload(decode=False)))
+        for part in parsed.get_payload()
+    ]
+    others = sum(
+        1
+        for _, method, target, _, _ in parts
+        if not (method and target and _batch_part_downloads(method, target))
+    )
+    outer = _BATCH_OUTER.set(_BatchOuter(str(request.base_url), request.url.query, others == 1))
     try:
         async with httpx.AsyncClient(
             transport=transport, base_url="http://backlot.batch"
         ) as client:
-            for part in parsed.get_payload():
-                cid = part.get("Content-ID", "")
-                method, target, sub_headers, sub_body = _parse_batch_subrequest(
-                    part.get_payload(decode=False)
-                )
+            for cid, method, target, sub_headers, sub_body in parts:
                 if outer_auth and not any(k.lower() == "authorization" for k in sub_headers):
                     sub_headers["Authorization"] = outer_auth
                 if not method or not target:
@@ -2192,8 +2223,11 @@ async def drive_files_get(file_id: str, request: Request):
     download = gerr.alt_format(request.query_params) == "media"
     _drive_typed(request, "acknowledgeAbuse", "supportsAllDrives", "supportsTeamDrives")
     # Measured 2026-10-04: before the lookup, so a file that does not exist is refused alike, and
-    # before `fields`. Inside a batch real does not check a part's own flag.
-    if not download and _drive_true(request, "acknowledgeAbuse") and _BATCH_OUTER.get() is None:
+    # before `fields`. Inside a batch real checks a part's own flag only when the part is the batch's
+    # one part that is not a download, measured 2026-10-05 beside downloads, other reads and a
+    # second flagged part.
+    outer = _BATCH_OUTER.get()
+    if not download and _drive_true(request, "acknowledgeAbuse") and (outer is None or outer.lone):
         raise gerr.abuse_acknowledgment_not_applicable()
     ids = auth.visible_ids(request, caller)
     row = store.gdrive_by_id(conn, file_id, visible_ids=ids)
@@ -4001,16 +4035,20 @@ def _drive_true(request: Request, name: str) -> bool:
     return (gerr.first_repeat(request.query_params, name) or "").casefold() == "true"
 
 
-def _drive_batch_download(request: Request) -> bool:
-    """Whether this request is a Drive download sent as a part of a batch: `files.get` with
-    `alt=media`, or `files.export` with no `alt`, an empty one or `alt=media`. Read off the route
-    the request matched, so the router's dependency can ask before the route runs."""
-    if _BATCH_OUTER.get() is None:
-        return False
-    alt = gerr.alt_format(request.query_params)
-    endpoint = request.scope.get("endpoint")
+def _drive_download(endpoint, query) -> bool:
+    """Whether a request to `endpoint` with `query` is a Drive download: `files.get` with
+    `alt=media`, or `files.export` with no `alt`, an empty one or `alt=media`."""
+    alt = gerr.alt_format(query)
     return (endpoint is drive_files_get and alt == "media") or (
         endpoint is drive_files_export and alt in ("", "media")
+    )
+
+
+def _drive_batch_download(request: Request) -> bool:
+    """Whether this request is a Drive download sent as a part of a batch. Read off the route the
+    request matched, so the router's dependency can ask before the route runs."""
+    return _BATCH_OUTER.get() is not None and _drive_download(
+        request.scope.get("endpoint"), request.query_params
     )
 
 
@@ -4064,13 +4102,13 @@ def _drive_batch_redirect(request: Request) -> None:
     fragment."""
     if request.headers.get("authorization"):
         _require(request)
-    base, outer_query = _BATCH_OUTER.get()
+    outer = _BATCH_OUTER.get()
     path = _batch_escapes(request.scope["raw_path"].decode("latin-1"), "-._~")
     pairs = _batch_query_pairs(request.scope["query_string"].decode("latin-1"))
     named = {name for name, _ in pairs}
-    pairs += [(name, value) for name, value in _batch_query_pairs(outer_query) if name not in named]
+    pairs += [(name, value) for name, value in _batch_query_pairs(outer.query) if name not in named]
     query = "&".join(f"{name}={value}" for name, value in pairs)
-    raise gerr.download_redirect(f"{base}download{path}" + (f"?{query}" if query else ""))
+    raise gerr.download_redirect(f"{outer.base}download{path}" + (f"?{query}" if query else ""))
 
 
 # An int32 as the Drive query parser takes one. Measured on `pageSize`, on `files.list` 2026-09-23

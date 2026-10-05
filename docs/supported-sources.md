@@ -233,7 +233,7 @@ because that is where Google puts them.
 | Endpoint | Notes |
 |---|---|
 | `POST /oauth2/token` | Turns a Google-style client credential into a bearer token the rest of Backlot already understands. Two grants: `refresh_token`, where the refresh token *is* the user's token from `/_meta/users`, and a signed service-account JWT assertion, whose `sub` claim selects the impersonated user under domain-wide delegation. A bare service account with no `sub` resolves to the admin/service identity. Expiry is cosmetic — a re-refresh returns the same token, so a long crawl never breaks |
-| `POST /batch`, `POST /batch/{api}/{version}` | Google's `multipart/mixed` batch envelope: each part is an `application/http` sub-request, answered in order with its `Content-ID` preserved. The outer credential applies to any sub-request that does not carry its own, as real Google does. As in real's Drive batch, a Drive download (`files.export` with no `alt`, an empty one or `alt=media`, or `files.get` with `alt=media`) is a 302 to the same path under `/download`, which this server does not serve, after `$.xgafv` and after a credential the part carries (a part with none is redirected too), and ahead of `callback` and the typed, lookup, `fields` and `mimeType` refusals; as in real's Sheets batch, a Sheets read is 501 `UNIMPLEMENTED` |
+| `POST /batch`, `POST /batch/{api}/{version}` | Google's `multipart/mixed` batch envelope: each part is an `application/http` sub-request, answered in order with its `Content-ID` preserved. The outer credential applies to any sub-request that does not carry its own, as real Google does. As in real's Drive batch, a Drive download (`files.export` with no `alt`, an empty one or `alt=media`, or `files.get` with `alt=media`) is a 302 to the same path under `/download`, which this server does not serve, after `$.xgafv` and after a credential the part carries (a part with no credential, on it or on the batch, is redirected too), and ahead of `callback` and the typed, lookup, `fields` and `mimeType` refusals; as in real's Sheets batch, a Sheets read is 501 `UNIMPLEMENTED` |
 
 `/batch` is Google-shaped but not Google-scoped — sub-requests are dispatched against the whole
 app, so a batch may target any endpoint this server serves, not only Google Drive's.
@@ -312,10 +312,10 @@ parse as true and run none. `includeItemsFromAllDrives` or `includeTeamDriveItem
 without `supportsAllDrives` or `supportsTeamDrives` spelled the same way is 403
 `supportsTeamDrivesRequired`, between the `orderBy` and `q` refusals. `acknowledgeAbuse` on a
 `files.get` that downloads nothing is 403 `invalidAbuseAcknowledgment`, before the file is looked
-up, though not for a batch's part, whose own flag real does not check. `useDomainAdminAccess`, since
-no caller here is a domain administrator, is 404 `File not found` on `permissions.list` and 400
+up, and inside a batch only on its one part that is not a download. `useDomainAdminAccess`, since no
+caller here is a domain administrator, is 404 `File not found` on `permissions.list` and 400
 `Invalid Value` at `q` on `drives.list`. Each flag is read from its first repeat. Measured against
-the live Drive API on 2026-10-04.
+the live Drive API on 2026-10-04, and the batch's part on 2026-10-05.
 
 ### HubSpot — `/hubspot/crm/v3` `/hubspot/crm/v4`
 

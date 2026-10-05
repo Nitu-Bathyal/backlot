@@ -757,7 +757,8 @@ _A1_FILTER = '{"dataFilters": [{"a1Range": "A1"}]}'
 # rules.
 # fmt: off
 _BATCH_ROWS = [
-    # a Drive download is redirected, whatever else the request says
+    # a Drive download is redirected ahead of the lookup and the typed, `fields` and `mimeType`
+    # refusals
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{sheet}/export?mimeType=text/csv", None, None), 302, 200, "download/drive/v3/files/{sheet}/export?mimeType=text/csv&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=", None, None), 302, 400, "download/drive/v3/files/{doc}/export?mimeType=&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export", None, None), 302, 400, "download/drive/v3/files/{doc}/export?quotaUser=7"),
@@ -805,11 +806,11 @@ _BATCH_ROWS = [
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain&callback=a%20b", None, None), 302, None, "download/drive/v3/files/{doc}/export?mimeType=text/plain&callback=a%20b&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=media&callback=a%20b", None, None), 302, None, "download/drive/v3/files/{pdf}?alt=media&callback=a%20b&quotaUser=7"),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain&callback=a%20b&$.xgafv=9", None, None), 400, None, None),
-    # what is not a download is answered as it is on its own, but for the check of a part's own
-    # `acknowledgeAbuse`
+    # what is not a download is answered as it is on its own, the one part of its batch here (a part
+    # beside others is in `_BATCH_ACK_ROWS`)
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{pdf}?alt=json&alt=media", None, None), 200, 200, None),
-    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}?acknowledgeAbuse=TRUE", None, None), 200, 403, None),
-    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{nope}?acknowledgeAbuse=true", None, None), 404, 403, None),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}?acknowledgeAbuse=TRUE", None, None), 403, 403, None),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/{nope}?acknowledgeAbuse=true", None, None), 403, 403, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files?pageSize=1&includeItemsFromAllDrives=true", None, None), 403, 403, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/permissions?useDomainAdminAccess=true", None, None), 404, 404, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/drives?useDomainAdminAccess=true", None, None), 400, 400, None),
@@ -897,6 +898,57 @@ def test_google_batch_passes_on_no_location_on_the_host_it_sends_parts_to(client
     assert (alone.status_code, "location" in alone.headers) == (302, True)
     status, lines, _ = _batch_answer(client, admin_h, _DRIVE_BATCH, "GET", target, None, None)
     assert (status, lines) == (302, ["Content-Type: text/html;charset=utf-8"])
+
+
+_ACK = "/drive/v3/files/{doc}?acknowledgeAbuse=true&fields=id"
+_ACK_NOPE = "/drive/v3/files/{nope}?acknowledgeAbuse=true"
+_DOWNLOAD = "/drive/v3/files/{pdf}?alt=media"
+_EXPORT = "/drive/v3/files/{doc}/export?mimeType=text/plain"
+_ABOUT = "/drive/v3/about?fields=user"
+_SHARED = "/drive/v3/files?pageSize=1&includeItemsFromAllDrives=true"
+
+# Batches of several parts, one or two of them asking `acknowledgeAbuse` on a read that downloads
+# nothing, with the status of each part as real answered it on 2026-10-05. The flag is checked
+# where its part is the one part of the batch that is not a download (`drive_files_get`).
+_BATCH_ACK_ROWS = [
+    ([_ACK, _ABOUT], [200, 200]),
+    ([_ABOUT, _ACK], [200, 200]),
+    ([_ACK, _ACK], [200, 200]),
+    ([_ACK_NOPE, _ABOUT], [404, 200]),
+    ([_SHARED, _ACK], [403, 200]),
+    ([_DOWNLOAD, _ACK, _ACK], [302, 200, 200]),
+    ([_ABOUT, _DOWNLOAD, _ACK], [200, 302, 200]),
+    ([_DOWNLOAD, _ACK], [302, 403]),
+    ([_ACK, _DOWNLOAD], [403, 302]),
+    ([_EXPORT, _ACK], [302, 403]),
+    ([_DOWNLOAD, _ACK_NOPE], [302, 403]),
+    ([_DOWNLOAD, _DOWNLOAD, _ACK], [302, 302, 403]),
+]
+
+
+@pytest.mark.parametrize("targets, statuses", _BATCH_ACK_ROWS)
+def test_google_batch_checks_acknowledge_abuse_on_its_one_part_that_is_not_a_download(
+    client, admin_h, targets, statuses
+):
+    """The rows `_BATCH_ACK_ROWS` records. A function of its own: a row is a batch of several
+    parts, where a `_BATCH_ROWS` row is one part."""
+    ids = {
+        "doc": _drive_find(client, admin_h, "Brand")["id"],
+        "pdf": _drive_find(client, admin_h, "Whitepaper")["id"],
+        "nope": "nosuchfile000",
+    }
+    payload = "".join(
+        f"--b\r\nContent-Type: application/http\r\nContent-ID: <p{i}>\r\n\r\n"
+        f"GET {target.format(**ids)} HTTP/1.1\r\n\r\n"
+        for i, target in enumerate(targets)
+    )
+    r = client.post(
+        _DRIVE_BATCH,
+        headers={**admin_h, "Content-Type": "multipart/mixed; boundary=b"},
+        content=payload + "--b--\r\n",
+    )
+    assert r.status_code == 200, r.text
+    assert [int(code) for code in re.findall(r"^HTTP/1\.1 (\d+)", r.text, re.M)] == statuses
 
 
 def test_user_cannot_fetch_others_private_gmail(client, tokens_yaml, admin_h, ro_conn):
