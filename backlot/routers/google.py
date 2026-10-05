@@ -37,10 +37,10 @@ from backlot.pagination import decode_cursor, decode_cursor_or_none, next_page_t
 # batch — see `_system_parameters`. A router dependency runs only once a route has MATCHED, so a
 # family path with no route 404s here rather than refusing either value — which is why the check
 # records whether it looked at `callback` and `gerr.rendered` wraps nothing without it: an unrouted
-# path must not be answered by calling a name nothing refused. Nothing to match there — measured 2026-09-16, real
-# answers an unrouted family path from its front end, as HTML, 400 on Sheets, Docs and Slides and
-# 404 on Drive and Gmail, with or without either parameter, so no JSON envelope of its own exists
-# to compare against.
+# path must not be answered by calling a name nothing refused. Nothing to match there — measured
+# 2026-09-16, real answers an unrouted family path from its front end, as HTML, 400 on Sheets, Docs
+# and Slides and 404 on Drive and Gmail, with or without either parameter, so no JSON envelope of
+# its own exists to compare against.
 
 
 def _system_parameters(request: Request) -> None:
@@ -2046,8 +2046,8 @@ async def drive_shared_drives(request: Request):
     _drive_page_size_in_range(
         _drive_typed(request, "useDomainAdminAccess", page_size=True)["pageSize"], 100
     )
-    # Real's answer to a caller who is not a domain administrator, which no caller here is, with a
-    # `q` sent and without one. Measured 2026-10-04.
+    # No caller here is a domain administrator: 400 at `q`, with a `q` sent and without one,
+    # measured 2026-10-04.
     if _drive_true(request, "useDomainAdminAccess"):
         raise gerr.invalid_value("q")
     return {"kind": "drive#driveList", "drives": []}
@@ -2277,8 +2277,8 @@ async def drive_files_permissions(file_id: str, request: Request):
         request, "supportsAllDrives", "supportsTeamDrives", "useDomainAdminAccess", page_size=True
     )["pageSize"]
     _drive_page_size_in_range(sizes, 100)
-    # Real's answer to a caller who is not a domain administrator, which no caller here is, even for
-    # a file the caller owns. Measured 2026-10-04.
+    # No caller here is a domain administrator: 404 for the file, even one the caller owns,
+    # measured 2026-10-04.
     if _drive_true(request, "useDomainAdminAccess"):
         raise gerr.not_found_file(file_id)
     ids = auth.visible_ids(request, caller)
