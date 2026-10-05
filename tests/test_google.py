@@ -751,9 +751,10 @@ _A1_FILTER = '{"dataFilters": [{"a1Range": "A1"}]}'
 # with its query, the part as (method, target, body, its own Authorization), the status in the batch
 # and the status of the same request sent on its own, then a 302's `Location` below the server's
 # base URL or a 501's body. The status on its own is ``None`` where real's is one Backlot does not
-# give: the export with an empty `alt=` (400), the two downloads with `callback=a%20b` (503) and
-# the export with that `callback` beside `$.xgafv=9` (400). `_drive_batch_download` and `_workbook`
-# record the rules.
+# give: the export with an empty `alt=` (400), the id holding a `%` no two hex digits follow (503),
+# the two downloads with `callback=a%20b` (503) and the export with that `callback` beside
+# `$.xgafv=9` (400). `_drive_batch_download`, `_drive_batch_redirect` and `_workbook` record the
+# rules.
 # fmt: off
 _BATCH_ROWS = [
     # a Drive download is redirected, whatever else the request says
@@ -788,6 +789,13 @@ _BATCH_ROWS = [
     (_NORMALISED, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain&~t=1", None, None), 302, 200, "download/drive/v3/files/{doc}/export?mimeType=text/plain&~t=1&quotaUser=7&foo=A&bar=1"),
     ("/batch/drive/v3?quotaUser=7&n%31=%32", ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain&d=%31&dot=%2E&us=%5F&pct=%25&q=%3f", None, None), 302, 200, "download/drive/v3/files/{doc}/export?mimeType=text/plain&d=1&dot=%2E&us=%5F&pct=%25&q=%3F&quotaUser=7&n1=2"),
     ("/batch/drive/v3?quotaUser=7&n%31=%32", ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain&n1=9", None, None), 302, 200, "download/drive/v3/files/{doc}/export?mimeType=text/plain&n1=9&quotaUser=7"),
+    # its path's escapes, as `_drive_batch_redirect` records them
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%20b%3fc%25d?alt=media", None, None), 302, 404, "download/drive/v3/files/a%20b%3Fc%25d?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%7eb%2dc%2Ed%5fe%41%7a%30?alt=media", None, None), 302, 404, "download/drive/v3/files/a~b-c.d_eAz0?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%E2%82%ACb?alt=media", None, None), 302, 404, "download/drive/v3/files/a%E2%82%ACb?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%c3%a9b%2a?alt=media", None, None), 302, 404, "download/drive/v3/files/a%C3%A9b%2A?alt=media&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%23b/export?mimeType=text/plain", None, None), 302, 404, "download/drive/v3/files/a%23b/export?mimeType=text/plain&quotaUser=7"),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/files/a%b%4?alt=media", None, None), 302, None, "download/drive/v3/files/a%b%4?alt=media&quotaUser=7"),
     # its place among `$.xgafv`, the credential and `callback`, as `_drive_batch_redirect` records
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain", None, _BAD), 401, 401, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/export?mimeType=text/plain", None, _ANON), 302, 403, "download/drive/v3/files/{doc}/export?mimeType=text/plain&quotaUser=7"),

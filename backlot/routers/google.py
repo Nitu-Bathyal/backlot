@@ -4015,9 +4015,21 @@ def _drive_batch_download(request: Request) -> bool:
     )
 
 
-# A percent-escape in a query string, which real decodes in a batch redirect's `Location` when it
-# stands for an ASCII letter or digit -- see `_batch_query_pairs`.
-_QUERY_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
+_URL_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
+
+
+def _batch_escapes(text: str, decoded: str) -> str:
+    """`text` with each escape of an ASCII letter or digit, or of a character in `decoded`, decoded,
+    and each other escape kept with its hex in upper case. A `%` that two hex digits do not follow
+    stays as sent."""
+
+    def one(match: "re.Match[str]") -> str:
+        char = chr(int(match.group(1), 16))
+        if char.isascii() and (char.isalnum() or char in decoded):
+            return char
+        return "%" + match.group(1).upper()
+
+    return _URL_ESCAPE.sub(one, text)
 
 
 def _batch_query_pairs(query: str) -> list[tuple[str, str]]:
@@ -4026,16 +4038,8 @@ def _batch_query_pairs(query: str) -> list[tuple[str, str]]:
     and an escape of an ASCII letter or digit is decoded, where any other escape keeps its byte and
     has its hex written in upper case (`%7e` is `%7E`, `%2d` is `%2D`); `+` and `%20` stay as
     sent."""
-
-    def normalised(text: str) -> str:
-        def one(match: "re.Match[str]") -> str:
-            char = chr(int(match.group(1), 16))
-            return char if char.isascii() and char.isalnum() else "%" + match.group(1).upper()
-
-        return _QUERY_ESCAPE.sub(one, text)
-
     return [
-        (normalised(name), normalised(value))
+        (_batch_escapes(name, ""), _batch_escapes(value, ""))
         for name, _, value in (pair.partition("=") for pair in query.split("&") if pair)
     ]
 
@@ -4050,20 +4054,24 @@ def _drive_batch_redirect(request: Request) -> None:
     `mimeType`, a Docs file read with `alt=media`, and a `callback`, which neither wraps the
     redirect (`cb`) nor refuses it (`a b`).
 
-    `Location` is the request's path under `/download`, then the request's query pairs, then each
-    of the batch request's whose name the request's pairs do not carry, in the batch's order, all
-    as `_batch_query_pairs` writes them. A name is matched as written there, so `fo%6F=` keeps the
-    batch's `foo` out and `Foo` does not, and a name the batch repeats is carried every time."""
+    `Location` is the request's path under `/download`, as sent but for its escapes: measured
+    2026-10-05 on `files/a%XXb` for each byte 0x20-0x7E, real decodes an escape of an ASCII letter,
+    digit, `-`, `.`, `_` or `~` and keeps any other with its hex in upper case, `%23`, `%2F` and
+    `%E2%82%AC` among them. Then come the request's query pairs, then each of the batch request's
+    whose name the request's pairs do not carry, in the batch's order, all as `_batch_query_pairs`
+    writes them. A name is matched as written there, so `fo%6F=` keeps the batch's `foo` out and
+    `Foo` does not, and a name the batch repeats is carried every time. The path and the query are
+    read from the request's raw bytes, not its decoded URL, in which `%23` would start a
+    fragment."""
     if request.headers.get("authorization"):
         _require(request)
     base, outer_query = _BATCH_OUTER.get()
-    pairs = _batch_query_pairs(request.url.query)
+    path = _batch_escapes(request.scope["raw_path"].decode("latin-1"), "-._~")
+    pairs = _batch_query_pairs(request.scope["query_string"].decode("latin-1"))
     named = {name for name, _ in pairs}
     pairs += [(name, value) for name, value in _batch_query_pairs(outer_query) if name not in named]
     query = "&".join(f"{name}={value}" for name, value in pairs)
-    raise gerr.download_redirect(
-        f"{base}download{request.url.path}" + (f"?{query}" if query else "")
-    )
+    raise gerr.download_redirect(f"{base}download{path}" + (f"?{query}" if query else ""))
 
 
 # An int32 as the Drive query parser takes one. Measured on `pageSize`, on `files.list` 2026-09-23
