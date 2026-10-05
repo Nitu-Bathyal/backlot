@@ -888,6 +888,17 @@ def test_google_batch_redirects_a_drive_download_and_refuses_a_sheets_read(
         assert sent.status_code == alone, sent.text
 
 
+def test_google_batch_passes_on_no_location_on_the_host_it_sends_parts_to(client, admin_h):
+    """`batch` sends its parts to a host nothing answers, so a redirect a route builds from it is
+    passed on without its `Location`. A function of its own: a GitHub part is no answer real's
+    Drive batch gives, so it is no row of `_BATCH_ROWS`."""
+    target = "/github/repos/acme/gateway/contents/src/"
+    alone = client.get(target, headers=admin_h, follow_redirects=False)
+    assert (alone.status_code, "location" in alone.headers) == (302, True)
+    status, lines, _ = _batch_answer(client, admin_h, _DRIVE_BATCH, "GET", target, None, None)
+    assert (status, lines) == (302, ["Content-Type: text/html;charset=utf-8"])
+
+
 def test_user_cannot_fetch_others_private_gmail(client, tokens_yaml, admin_h, ro_conn):
     # a private gmail doc owned by user B, fetched with user A's token -> 404
     user_a, user_b = tokens_yaml["users"][0], tokens_yaml["users"][1]
