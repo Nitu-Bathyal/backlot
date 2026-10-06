@@ -314,10 +314,11 @@ parse as true and run none. `includeItemsFromAllDrives` or `includeTeamDriveItem
 without `supportsAllDrives` or `supportsTeamDrives` spelled the same way is 403
 `supportsTeamDrivesRequired`, between the `orderBy` and `q` refusals. `acknowledgeAbuse` on a
 `files.get` that downloads nothing is 403 `invalidAbuseAcknowledgment`, before the file is looked
-up, and inside a batch only on its one part that is not a download. `useDomainAdminAccess`, since no
-caller here is a domain administrator, is 404 `File not found` on `permissions.list` and 400
-`Invalid Value` at `q` on `drives.list`. Each flag is read from its first repeat. Measured against
-the live Drive API on 2026-10-04, and the batch's part on 2026-10-05.
+up, and inside a batch only on its one part that is not a download. `useDomainAdminAccess`, since
+every caller here is a Workspace member and none is its domain's administrator, is 404
+`File not found` on `permissions.list` and 403 `noListTeamDrivesAdministratorPrivilege` on
+`drives.list`. Each flag is read from its first repeat. Measured against the live Drive API on
+2026-10-04, the batch's part on 2026-10-05, and `drives.list` as a Workspace member on 2026-10-06.
 
 **A Sheets read enum is taken by its name in any ASCII case, with `-` for `_`, or by the number the
 name has**, in the query string and in a data-filter body alike, and `DIMENSION_UNSPECIFIED` reads

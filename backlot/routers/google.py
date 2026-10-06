@@ -2077,10 +2077,11 @@ async def drive_shared_drives(request: Request):
     _drive_page_size_in_range(
         _drive_typed(request, "useDomainAdminAccess", page_size=True)["pageSize"], 100
     )
-    # No caller here is a domain administrator: 400 at `q`, with a `q` sent and without one,
-    # measured 2026-10-04.
+    # Every caller here is a member of one Workspace domain and none is its administrator: a
+    # member's 403, with a `q` sent and without one, on its own and in a batch, measured 2026-10-06.
+    # Real answers a domain administrator 200 and a consumer account 400 at `q`.
     if _drive_true(request, "useDomainAdminAccess"):
-        raise gerr.invalid_value("q")
+        raise gerr.domain_admin_privilege_required()
     return {"kind": "drive#driveList", "drives": []}
 
 
@@ -2312,7 +2313,7 @@ async def drive_files_permissions(file_id: str, request: Request):
     )["pageSize"]
     _drive_page_size_in_range(sizes, 100)
     # No caller here is a domain administrator: 404 for the file, even one the caller owns,
-    # measured 2026-10-04.
+    # measured 2026-10-04 on a consumer account and 2026-10-06 on a Workspace member.
     if _drive_true(request, "useDomainAdminAccess"):
         raise gerr.not_found_file(file_id)
     ids = auth.visible_ids(request, caller)

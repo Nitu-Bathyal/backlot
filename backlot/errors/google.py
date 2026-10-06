@@ -211,6 +211,17 @@ def supports_all_drives_required() -> GoogleError:
     )
 
 
+def domain_admin_privilege_required() -> GoogleError:
+    """`drives.list` asked for a domain administrator's access, from a Workspace member who is not
+    one. No `location` and no `status`, measured 2026-10-06."""
+    return GoogleError(
+        403,
+        "The requesting user does not have the administrator privilege required to list or manage "
+        "all shared drives.",
+        reason="noListTeamDrivesAdministratorPrivilege",
+    )
+
+
 def abuse_acknowledgment_not_applicable() -> GoogleError:
     """`files.get` acknowledged abuse on a read that downloads nothing. Measured 2026-10-04."""
     return GoogleError(

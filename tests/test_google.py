@@ -817,7 +817,7 @@ _BATCH_ROWS = [
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{nope}?acknowledgeAbuse=true", None, None), 403, 403, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files?pageSize=1&includeItemsFromAllDrives=true", None, None), 403, 403, None),
     (_DRIVE_BATCH, ("GET", "/drive/v3/files/{doc}/permissions?useDomainAdminAccess=true", None, None), 404, 404, None),
-    (_DRIVE_BATCH, ("GET", "/drive/v3/drives?useDomainAdminAccess=true", None, None), 400, 400, None),
+    (_DRIVE_BATCH, ("GET", "/drive/v3/drives?useDomainAdminAccess=true", None, None), 403, 403, None),
     # a Sheets read is not implemented, after the credential and the typed values and before the
     # lookup
     (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/A1", None, None), 501, 200, _UNIMPLEMENTED),
@@ -1402,13 +1402,20 @@ _ABUSE = (
     "acknowledgeAbuse",
     "The acknowledgeAbuse parameter is only applicable for download requests.",
 )
+_ADMIN_ONLY = (
+    403,
+    "noListTeamDrivesAdministratorPrivilege",
+    None,
+    "The requesting user does not have the administrator privilege required to list or manage all "
+    "shared drives.",
+)
 _SERVED = (200, None, None, None)
 _TYPED = (400, "invalid", None, None)
 _RANGE = (400, "invalidParameter", "page_size", None)
 
 # A Drive request beside real's answer, one request per row: the route, its query and who sends it,
-# then the status and `errors[0]`'s reason, location and, for the two 403s a flag spelled `true` is
-# refused with (`_drive_true`), message. The `1` spellings, which parse as true and run no check,
+# then the status and `errors[0]`'s reason, location and, for the three 403s a flag spelled `true`
+# is refused with (`_drive_true`), message. The `1` spellings, which parse as true and run no check,
 # are rows of `_DRIVE_BOOL_ROWS`.
 # fmt: off
 _DRIVE_CHECK_ROWS = [
@@ -1473,10 +1480,12 @@ _DRIVE_CHECK_ROWS = [
     ("/drive/v3/files/{hidden}/permissions", "useDomainAdminAccess=false", "admin", _SERVED),
     ("/drive/v3/files/{doc}/permissions", "useDomainAdminAccess=true&pageSize=0", "admin", _RANGE),
     ("/drive/v3/files/{doc}/permissions", "useDomainAdminAccess=true&supportsAllDrives=NOPE", "admin", _TYPED),
-    ("/drive/v3/drives", "useDomainAdminAccess=true", "admin", (400, "invalid", "q", None)),
-    ("/drive/v3/drives", "useDomainAdminAccess=TRUE", "admin", (400, "invalid", "q", None)),
+    ("/drive/v3/drives", "useDomainAdminAccess=true", "admin", _ADMIN_ONLY),
+    ("/drive/v3/drives", "useDomainAdminAccess=TRUE", "admin", _ADMIN_ONLY),
+    ("/drive/v3/drives", "useDomainAdminAccess=true&useDomainAdminAccess=false", "admin", _ADMIN_ONLY),
+    ("/drive/v3/drives", "useDomainAdminAccess=false&useDomainAdminAccess=true", "admin", _SERVED),
     ("/drive/v3/drives", "useDomainAdminAccess=true&pageSize=0", "admin", _RANGE),
-    ("/drive/v3/drives", "useDomainAdminAccess=true&q=name%3D%27x%27", "admin", (400, "invalid", "q", None)),
+    ("/drive/v3/drives", "useDomainAdminAccess=true&q=name%3D%27x%27", "admin", _ADMIN_ONLY),
 ]
 # fmt: on
 
