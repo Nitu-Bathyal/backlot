@@ -317,8 +317,8 @@ without `supportsAllDrives` or `supportsTeamDrives` spelled the same way is 403
 up, and inside a batch only on its one part that is not a download. `useDomainAdminAccess`, since
 every caller here is a Workspace member and none is its domain's administrator, is 404
 `File not found` on `permissions.list` and 403 `noListTeamDrivesAdministratorPrivilege` on
-`drives.list`. Each flag is read from its first repeat. Measured against the live Drive API on
-2026-10-04, the batch's part on 2026-10-05, and `drives.list` as a Workspace member on 2026-10-06.
+`drives.list`. Each flag is read from its first repeat. Measured against the live Drive API as such
+a member on 2026-10-06, on its own and in a batch.
 
 **A Sheets read enum is taken by its name in any ASCII case, with `-` for `_`, or by the number the
 name has**, in the query string and in a data-filter body alike, and `DIMENSION_UNSPECIFIED` reads

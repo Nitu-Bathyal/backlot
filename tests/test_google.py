@@ -752,9 +752,10 @@ _A1_FILTER = '{"dataFilters": [{"a1Range": "A1"}]}'
 # and the status of the same request sent on its own, then a 302's `Location` below the server's
 # base URL or a 501's body. The status on its own is ``None`` where real's is one Backlot does not
 # give: the export with an empty `alt=` (400), the id holding a `%` no two hex digits follow (503),
-# the two downloads with `callback=a%20b` (503) and the export with that `callback` beside
-# `$.xgafv=9` (400). `_drive_batch_download`, `_drive_batch_redirect` and `_workbook` record the
-# rules.
+# the two downloads with `callback=a%20b` (503), the export with that `callback` beside `$.xgafv=9`
+# (400) and the Sheets read of a spreadsheet the caller cannot see (403
+# `The caller does not have permission`, where Backlot answers as for one that does not exist).
+# `_drive_batch_download`, `_drive_batch_redirect` and `_workbook` record the rules.
 # fmt: off
 _BATCH_ROWS = [
     # a Drive download is redirected ahead of the lookup and the typed, `fields` and `mimeType`
@@ -826,7 +827,7 @@ _BATCH_ROWS = [
     (_SHEETS_BATCH, ("POST", "/sheets/v4/spreadsheets/{sheet}:getByDataFilter", "{}", None), 501, 200, _UNIMPLEMENTED),
     (_SHEETS_BATCH, ("POST", "/sheets/v4/spreadsheets/{sheet}/values:batchGetByDataFilter", _A1_FILTER, None), 501, 200, _UNIMPLEMENTED),
     (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{nope}/values/A1", None, None), 501, 404, _UNIMPLEMENTED),
-    (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/A1", None, _MIA), 501, 404, _UNIMPLEMENTED),
+    (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/A1", None, _MIA), 501, None, _UNIMPLEMENTED),
     (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/NoSuchSheet!A1", None, None), 501, 400, _UNIMPLEMENTED),
     (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/A1?alt=media", None, None), 501, 400, _UNIMPLEMENTED),
     (_SHEETS_BATCH, ("GET", "/sheets/v4/spreadsheets/{sheet}/values/A1?$.xgafv=1", None, None), 501, 200, _UNIMPLEMENTED_AT_XGAFV_1),
