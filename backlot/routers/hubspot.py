@@ -155,9 +155,9 @@ def _clamp(raw, default: int, cap: int) -> int:
 
 
 def _flag(raw) -> bool:
-    """`archived=1` must not silently serve the un-archived view; accept the spellings a raw caller
-    plausibly sends (the official client always sends `true`/`false`)."""
-    return str(raw or "").strip().lower() in {"true", "1", "yes"}
+    """Measured against api.hubapi.com (2026-10-01): `archived` reads only `true` and `TRUE` as
+    true, and every other value as false (the official client always sends `true`/`false`)."""
+    return str(raw or "").strip().lower() == "true"
 
 
 def _props(row) -> dict:

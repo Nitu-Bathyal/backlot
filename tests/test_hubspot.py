@@ -27,6 +27,28 @@ def test_admin_hubspot_crawls_all(client, admin_h, ro_conn):
     assert all(r["archived"] is True for r in archived)
 
 
+@pytest.mark.parametrize(
+    "value,archived",
+    [
+        ("true", True),
+        ("TRUE", True),
+        ("1", False),
+        ("yes", False),
+        ("abc", False),
+        ("", False),
+    ],
+)
+def test_hubspot_archived_parameter_reads_only_true_as_true(client, admin_h, value, archived):
+    """Measured against api.hubapi.com (2026-10-01): only 'true' and 'TRUE' activate the archived view."""
+    r = client.get("/hubspot/crm/v3/objects/companies", headers=admin_h, params={"archived": value})
+    assert r.status_code == 200
+    names = [x["properties"]["name"] for x in r.json()["results"]]
+    if archived:
+        assert names == ["Defunct Labs"]
+    else:
+        assert "Defunct Labs" not in names
+
+
 def test_hubspot_list_cursor_pages_without_overlap(client, admin_h):
     """The cursor path itself: pages of two over the three non-archived companies, no repeats, no
     gaps, and the walk ends by `paging.next` disappearing rather than by a page coming back empty."""
