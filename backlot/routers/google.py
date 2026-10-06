@@ -3471,11 +3471,10 @@ def _workbook(request: Request, spreadsheet_id: str) -> tuple:
     a boolean: a cell's type is something a corpus states, never something this module infers.
 
     Inside a batch there is no lookup: real's batch does not implement the Sheets reads. Measured
-    2026-10-04 on the five reads this module serves, the answer is 501 after the credential and the
-    typed query values and before the spreadsheet is looked up, so one that does not exist gets it
-    as well."""
+    2026-10-04 on the five reads this module serves, and on the two POST reads' bodies 2026-10-06,
+    the answer is 501 after the credential, the typed query values and a POST read's body and before
+    the spreadsheet is looked up, so one that does not exist gets it as well."""
     if _BATCH_OUTER.get() is not None:
-        _require(request)  # which the two POST reads leave to the lookup below
         raise gerr.unimplemented()
     row = _editor_doc(request, spreadsheet_id, expect="spreadsheet")
     stored = store.gdrive_sheets_for(auth.conn(request), spreadsheet_id)
