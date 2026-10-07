@@ -155,9 +155,12 @@ def _clamp(raw, default: int, cap: int) -> int:
 
 
 def _flag(raw) -> bool:
-    """Measured against api.hubapi.com (2026-10-01): `archived` reads only `true` and `TRUE` as
-    true, and every other value as false (the official client always sends `true`/`false`)."""
-    return str(raw or "").strip().lower() == "true"
+    """`archived` is true when its value is `true` in any letter case, with nothing trimmed.
+    Measured against api.hubapi.com (2026-10-01, 2026-10-07): `true`, `TRUE` and `True` serve the
+    archived view; `1`, `yes`, `abc`, an empty value, and `true` with whitespace before or after it
+    (a space, tab, newline or no-break space) serve the active one. The official client always sends
+    `true`/`false`."""
+    return str(raw or "").lower() == "true"
 
 
 def _props(row) -> dict:

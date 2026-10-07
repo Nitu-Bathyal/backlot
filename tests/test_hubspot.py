@@ -32,21 +32,33 @@ def test_admin_hubspot_crawls_all(client, admin_h, ro_conn):
     [
         ("true", True),
         ("TRUE", True),
+        ("True", True),
         ("1", False),
         ("yes", False),
         ("abc", False),
         ("", False),
+        (" true", False),
+        ("true ", False),
+        ("\ttrue", False),
+        ("true\t", False),
+        ("\ntrue", False),
+        ("true\n", False),
+        ("\rtrue", False),
+        ("true\r", False),
+        ("\u00a0true", False),
+        ("true\u00a0", False),
     ],
 )
 def test_hubspot_archived_parameter_reads_only_true_as_true(client, admin_h, value, archived):
-    """Measured against api.hubapi.com (2026-10-01): only 'true' and 'TRUE' activate the archived view."""
-    r = client.get("/hubspot/crm/v3/objects/companies", headers=admin_h, params={"archived": value})
+    """`_flag`'s rule over companies: the one archived company when `_flag` reads the value as true,
+    and otherwise the same page as a request without `archived`."""
+    url = "/hubspot/crm/v3/objects/companies"
+    r = client.get(url, headers=admin_h, params={"archived": value})
     assert r.status_code == 200
-    names = [x["properties"]["name"] for x in r.json()["results"]]
     if archived:
-        assert names == ["Defunct Labs"]
+        assert [x["properties"]["name"] for x in r.json()["results"]] == ["Defunct Labs"]
     else:
-        assert "Defunct Labs" not in names
+        assert r.json() == client.get(url, headers=admin_h).json()
 
 
 def test_hubspot_list_cursor_pages_without_overlap(client, admin_h):
