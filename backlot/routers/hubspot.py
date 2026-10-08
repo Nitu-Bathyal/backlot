@@ -156,10 +156,11 @@ def _clamp(raw, default: int, cap: int) -> int:
 
 def _flag(raw) -> bool:
     """`archived` is true when its value is `true` in any letter case, with nothing trimmed.
-    Measured against api.hubapi.com (2026-10-01, 2026-10-07): `true`, `TRUE` and `True` serve the
-    archived view; `1`, `yes`, `abc`, an empty value, and `true` with whitespace before or after it
-    (a space, tab, newline or no-break space) serve the active one. The official client always sends
-    `true`/`false`."""
+    Measured against api.hubapi.com (2026-10-01, 2026-10-07, 2026-10-08): `true`, `TRUE` and `True`
+    serve the archived view; `1`, `yes`, `abc`, an empty value, and `true` with whitespace before or
+    after it (a space, tab, newline, carriage return or no-break space) serve the active one. The
+    Python client `hubspot-api-client` 12.0.0 sends `True`/`False`, and the Node client
+    `@hubspot/api-client` 14.0.1 sends `true`/`false`."""
     return str(raw or "").lower() == "true"
 
 
